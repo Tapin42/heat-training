@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Heat Acclimation Calendar</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --race: #da3633;
+      --session: #238636;
+      --bout1: #1f6feb;
+      --maintenance: #9e6a03;
+      --bout2: #8957e5;
+      --border: #30363d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 2rem;
+      line-height: 1.5;
+    }
+    .container { max-width: 960px; margin: 0 auto; }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin-bottom: 2rem;
+    }
+    .subtitle a { color: #58a6ff; }
+    form {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem;
+    }
+    label { font-weight: 500; }
+    input[type="date"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font: inherit;
+    }
+    button {
+      background: var(--session);
+      color: #fff;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:hover { filter: brightness(1.1); }
+    .error { color: var(--race); margin-top: 0.5rem; }
+    section.protocol {
+      margin-bottom: 2.5rem;
+    }
+    section.protocol h2 {
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    section.protocol .description {
+      color: var(--muted);
+      font-size: 0.8125rem;
+      margin-bottom: 1rem;
+    }
+    .calendars {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+    }
+    .month-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      min-width: 280px;
+    }
+    .month-title {
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 0.75rem;
+      font-size: 0.9375rem;
+    }
+    table.month {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+    }
+    table.month th {
+      color: var(--muted);
+      font-weight: 500;
+      padding: 0.25rem 0;
+      text-align: center;
+    }
+    table.month td {
+      padding: 0.2rem;
+      text-align: center;
+      border: 1px solid var(--border);
+    }
+    table.month td.blank { background: var(--surface); color: var(--muted); }
+    table.month td.bout { background: rgba(35, 134, 54, 0.35); font-weight: 600; }
+    table.month td.race { background: rgba(218, 54, 51, 0.4); font-weight: 700; }
+    table.month td.both { background: linear-gradient(135deg, rgba(35, 134, 54, 0.4), rgba(218, 54, 51, 0.4)); font-weight: 700; }
+    table.month td.bout1 { background: rgba(31, 111, 235, 0.35); font-weight: 600; }
+    table.month td.maintenance { background: rgba(158, 106, 3, 0.35); font-weight: 600; }
+    table.month td.bout2 { background: rgba(137, 87, 229, 0.35); font-weight: 600; }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 1rem;
+    }
+    .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .legend .swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+    }
+    .legend .swatch.race { background: rgba(218, 54, 51, 0.5); }
+    .legend .swatch.bout { background: rgba(35, 134, 54, 0.5); }
+    .legend .swatch.bout1 { background: rgba(31, 111, 235, 0.5); }
+    .legend .swatch.maintenance { background: rgba(158, 106, 3, 0.5); }
+    .legend .swatch.bout2 { background: rgba(137, 87, 229, 0.5); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Heat Acclimation Calendar</h1>
+    <p class="subtitle">
+      Based on the <a href="https://trainright.com/ultrarunners-heat-acclimation-cheat-sheet/" target="_blank" rel="noopener">TrainRight Ultrarunners' Heat Acclimation Cheat Sheet</a> (Jason Koop / CTS).
+    </p>
+
+    <form method="post" action="/">
+      <label for="race_date">Race date</label>
+      <input type="date" id="race_date" name="race_date" value="{{ race_date.strftime('%Y-%m-%d') if race_date else '' }}" required>
+      <button type="submit">Generate calendars</button>
+    </form>
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+    {% if race_date %}
+      <section class="protocol">
+        <h2>Protocol 1: Single exposure</h2>
+        <p class="description">
+          Ten consecutive days starting 19 days before the race, then maintenance sessions at 7 and 5 days out (2 off, sauna, 1 off, sauna, 4 off, race). Best when you have limited time; taper more than usual because sauna adds stress.
+        </p>
+        <div class="calendars">
+          {% for year, month, grid in protocol1_calendar_months %}
+          <div class="month-wrap">
+            <div class="month-title">{{ month_name[month] }} {{ year }}</div>
+            <table class="month">
+              <thead>
+                <tr>
+                  <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for week in grid %}
+                <tr>
+                  {% for day, cell_type in week %}
+                  <td class="{{ cell_type or 'blank' }}">{% if day %}{{ day }}{% endif %}</td>
+                  {% endfor %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="legend">
+          <span><span class="swatch bout"></span> Initial 10-day bout</span>
+          <span><span class="swatch maintenance"></span> Maintenance</span>
+          <span><span class="swatch race"></span> Race day</span>
+        </div>
+      </section>
+
+      <section class="protocol">
+        <h2>Protocol 2: Repeated exposure</h2>
+        <p class="description">
+          Bout 1: 11 sessions over 2 weeks (6+5 weeks out). Maintenance: 2 sessions per week during 2–4 weeks before race. Bout 2: First week with 6 sessions (same on/off pattern), then tapered final week (3 sessions at 5, 4, 2 days before race). Use when you have regular sauna access; avoid overlapping with heavy training.
+        </p>
+        <div class="calendars">
+          {% for year, month, grid in protocol2_calendar_months %}
+          <div class="month-wrap">
+            <div class="month-title">{{ month_name[month] }} {{ year }}</div>
+            <table class="month">
+              <thead>
+                <tr>
+                  <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for week in grid %}
+                <tr>
+                  {% for day, cell_type in week %}
+                  <td class="{{ cell_type or 'blank' }}">{% if day %}{{ day }}{% endif %}</td>
+                  {% endfor %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="legend">
+          <span><span class="swatch bout1"></span> Bout 1 (6+5 weeks out)</span>
+          <span><span class="swatch maintenance"></span> Maintenance (2/week)</span>
+          <span><span class="swatch bout2"></span> Bout 2 (final week)</span>
+          <span><span class="swatch race"></span> Race day</span>
+        </div>
+      </section>
+    {% else %}
+      <p class="description" style="color: var(--muted);">Enter a race date and click &ldquo;Generate calendars&rdquo; to see heat acclimation sessions for both protocols.</p>
+    {% endif %}
+  </div>
+</body>
+</html>

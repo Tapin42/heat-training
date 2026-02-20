@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Heat Acclimation Calendar</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --race: #da3633;
+      --session: #238636;
+      --bout1: #1f6feb;
+      --maintenance: #9e6a03;
+      --bout2: #8957e5;
+      --border: #30363d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 2rem;
+      line-height: 1.5;
+    }
+    .container { max-width: 960px; margin: 0 auto; }
+    h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .subtitle { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; }
+    .subtitle a { color: #58a6ff; }
+    form {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem;
+    }
+    label { font-weight: 500; }
+    input[type="date"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font: inherit;
+    }
+    button {
+      background: var(--session);
+      color: #fff;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:hover { filter: brightness(1.1); }
+    .error { color: var(--race); margin-top: 0.5rem; }
+    section.protocol { margin-bottom: 2.5rem; }
+    section.protocol h2 { font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem; }
+    section.protocol .description {
+      color: var(--muted);
+      font-size: 0.8125rem;
+      margin-bottom: 1rem;
+    }
+    .calendars { display: flex; flex-wrap: wrap; gap: 1.5rem; }
+    .month-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      min-width: 280px;
+    }
+    .month-title { font-weight: 600; text-align: center; margin-bottom: 0.75rem; font-size: 0.9375rem; }
+    table.month { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+    table.month th { color: var(--muted); font-weight: 500; padding: 0.25rem 0; text-align: center; }
+    table.month td { padding: 0.2rem; text-align: center; border: 1px solid var(--border); }
+    table.month td.blank { background: var(--surface); color: var(--muted); }
+    table.month td.bout { background: rgba(35, 134, 54, 0.35); font-weight: 600; }
+    table.month td.race { background: rgba(218, 54, 51, 0.4); font-weight: 700; }
+    table.month td.bout1 { background: rgba(31, 111, 235, 0.35); font-weight: 600; }
+    table.month td.maintenance { background: rgba(158, 106, 3, 0.35); font-weight: 600; }
+    table.month td.bout2 { background: rgba(137, 87, 229, 0.35); font-weight: 600; }
+    .legend { display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.75rem; color: var(--muted); margin-top: 1rem; }
+    .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .legend .swatch { width: 14px; height: 14px; border-radius: 3px; }
+    .legend .swatch.race { background: rgba(218, 54, 51, 0.5); }
+    .legend .swatch.bout { background: rgba(35, 134, 54, 0.5); }
+    .legend .swatch.bout1 { background: rgba(31, 111, 235, 0.5); }
+    .legend .swatch.maintenance { background: rgba(158, 106, 3, 0.5); }
+    .legend .swatch.bout2 { background: rgba(137, 87, 229, 0.5); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Heat Acclimation Calendar</h1>
+    <p class="subtitle">
+      Based on the <a href="https://trainright.com/ultrarunners-heat-acclimation-cheat-sheet/" target="_blank" rel="noopener">TrainRight Ultrarunners' Heat Acclimation Cheat Sheet</a> (Jason Koop / CTS).
+    </p>
+
+    <form id="form">
+      <label for="race_date">Race date</label>
+      <input type="date" id="race_date" name="race_date" required>
+      <button type="submit">Generate calendars</button>
+    </form>
+    <p id="error" class="error" style="display:none;"></p>
+
+    <div id="placeholder" class="description" style="color: var(--muted);">
+      Enter a race date and click &ldquo;Generate calendars&rdquo; to see heat acclimation sessions for both protocols.
+    </div>
+    <div id="calendars" style="display:none;"></div>
+  </div>
+
+  <script>
+(function() {
+  'use strict';
+
+  const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  function addDays(date, n) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + n);
+    return d;
+  }
+
+  function dateToKey(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  // Python: weekday() 0=Mon, 6=Sun. JS getDay(): 0=Sun, 1=Mon. Return Mon=0.
+  function weekdayMon(d) {
+    return (d.getDay() + 6) % 7;
+  }
+
+  function protocol1Sessions(raceDate) {
+    const r = new Date(raceDate.getFullYear(), raceDate.getMonth(), raceDate.getDate());
+    const bout = [];
+    const firstDay = addDays(r, -19);
+    for (let i = 0; i < 10; i++) {
+      bout.push(addDays(firstDay, i));
+    }
+    const maintenance = [
+      addDays(r, -7),
+      addDays(r, -5)
+    ];
+    return { bout, maintenance };
+  }
+
+  function protocol2Sessions(raceDate) {
+    const r = new Date(raceDate.getFullYear(), raceDate.getMonth(), raceDate.getDate());
+    const offset = weekdayMon(r) - 5; // 5=Saturday; Thu race -> -2
+
+    const sixWeeksOut = addDays(r, -42);
+    const monday6w = addDays(sixWeeksOut, -weekdayMon(sixWeeksOut));
+    const blockStart = addDays(monday6w, offset);
+    const bout1Offsets = [0, 1, 3, 4, 5, 7, 8, 10, 11, 12, 13];
+    const bout1 = bout1Offsets.map(i => addDays(blockStart, i));
+
+    const maintenance = [];
+    for (const weeksOut of [4, 3, 2]) {
+      const weekCenter = addDays(r, -weeksOut * 7);
+      const mondayOfWeek = addDays(weekCenter, -weekdayMon(weekCenter));
+      const blockStartM = addDays(mondayOfWeek, offset);
+      maintenance.push(addDays(blockStartM, 2), addDays(blockStartM, 5));
+    }
+
+    const bout2Week1Offsets = [12, 11, 9, 8, 7, 6];
+    const bout2Week1 = bout2Week1Offsets.map(d => addDays(r, -d));
+    const bout2Week2 = [5, 4, 2].map(d => addDays(r, -d));
+    const bout2 = bout2Week1.concat(bout2Week2);
+
+    return { bout1, maintenance, bout2 };
+  }
+
+  function toSet(dates) {
+    const s = new Set();
+    dates.forEach(d => s.add(dateToKey(d)));
+    return s;
+  }
+
+  function monthCalendar(year, month) {
+    const first = new Date(year, month, 1);
+    const last = new Date(year, month + 1, 0);
+    const startPad = weekdayMon(first);
+    const daysInMonth = last.getDate();
+    const weeks = [];
+    let week = [];
+    for (let i = 0; i < startPad; i++) week.push(0);
+    for (let d = 1; d <= daysInMonth; d++) {
+      week.push(d);
+      if (week.length === 7) {
+        weeks.push(week);
+        week = [];
+      }
+    }
+    if (week.length > 0) {
+      while (week.length < 7) week.push(0);
+      weeks.push(week);
+    }
+    return weeks;
+  }
+
+  function monthsToShow(dates, raceDate) {
+    const keys = new Set();
+    dates.forEach(d => keys.add(d.getFullYear() + '-' + (d.getMonth() + 1)));
+    keys.add(raceDate.getFullYear() + '-' + (raceDate.getMonth() + 1));
+    return Array.from(keys)
+      .map(k => k.split('-').map(Number))
+      .sort((a, b) => a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1]);
+  }
+
+  function buildGridP1(year, month, boutSet, maintSet, raceKey) {
+    const weeks = monthCalendar(year, month);
+    const result = [];
+    for (const week of weeks) {
+      const row = [];
+      for (const day of week) {
+        if (day === 0) {
+          row.push([null, null]);
+          continue;
+        }
+        const key = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        let type = null;
+        if (key === raceKey) type = 'race';
+        else if (boutSet.has(key)) type = 'bout';
+        else if (maintSet.has(key)) type = 'maintenance';
+        row.push([day, type]);
+      }
+      result.push(row);
+    }
+    return result;
+  }
+
+  function buildGridP2(year, month, bout1Set, maintSet, bout2Set, raceKey) {
+    const weeks = monthCalendar(year, month);
+    const result = [];
+    for (const week of weeks) {
+      const row = [];
+      for (const day of week) {
+        if (day === 0) {
+          row.push([null, null]);
+          continue;
+        }
+        const key = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        let type = null;
+        if (key === raceKey) type = 'race';
+        else if (bout1Set.has(key)) type = 'bout1';
+        else if (maintSet.has(key)) type = 'maintenance';
+        else if (bout2Set.has(key)) type = 'bout2';
+        row.push([day, type]);
+      }
+      result.push(row);
+    }
+    return result;
+  }
+
+  function renderMonth(year, month, grid) {
+    const title = MONTH_NAMES[month] + ' ' + year;
+    let html = '<div class="month-wrap"><div class="month-title">' + title + '</div>';
+    html += '<table class="month"><thead><tr>';
+    html += '<th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>';
+    html += '</tr></thead><tbody>';
+    for (const week of grid) {
+      html += '<tr>';
+      for (const [day, type] of week) {
+        const cls = type || 'blank';
+        html += '<td class="' + cls + '">' + (day !== null ? day : '') + '</td>';
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  function generate(raceDate) {
+    const p1 = protocol1Sessions(raceDate);
+    const p2 = protocol2Sessions(raceDate);
+
+    const raceKey = dateToKey(raceDate);
+    const p1All = p1.bout.concat(p1.maintenance);
+    const p1BoutSet = toSet(p1.bout);
+    const p1MaintSet = toSet(p1.maintenance);
+
+    const p2Bout1Set = toSet(p2.bout1);
+    const p2MaintSet = toSet(p2.maintenance);
+    const p2Bout2Set = toSet(p2.bout2);
+    const p2All = p2.bout1.concat(p2.maintenance).concat(p2.bout2);
+
+    const p1Months = monthsToShow(p1All, raceDate);
+    const p2Months = monthsToShow(p2All, raceDate);
+
+    let html = '';
+
+    html += '<section class="protocol"><h2>Protocol 1: Single exposure</h2>';
+    html += '<p class="description">Ten consecutive days starting 19 days before the race, then maintenance sessions at 7 and 5 days out (2 off, sauna, 1 off, sauna, 4 off, race). Best when you have limited time; taper more than usual because sauna adds stress.</p>';
+    html += '<div class="calendars">';
+    for (const [y, m] of p1Months) {
+      const grid = buildGridP1(y, m - 1, p1BoutSet, p1MaintSet, raceKey);
+      html += renderMonth(y, m - 1, grid);
+    }
+    html += '</div><div class="legend">';
+    html += '<span><span class="swatch bout"></span> Initial 10-day bout</span>';
+    html += '<span><span class="swatch maintenance"></span> Maintenance</span>';
+    html += '<span><span class="swatch race"></span> Race day</span>';
+    html += '</div></section>';
+
+    html += '<section class="protocol"><h2>Protocol 2: Repeated exposure</h2>';
+    html += '<p class="description">Bout 1: 11 sessions over 2 weeks (6+5 weeks out). Maintenance: 2 sessions per week during 2–4 weeks before race. Bout 2: First week with 6 sessions (same on/off pattern), then tapered final week (3 sessions at 5, 4, 2 days before race). Use when you have regular sauna access; avoid overlapping with heavy training.</p>';
+    html += '<div class="calendars">';
+    for (const [y, m] of p2Months) {
+      const grid = buildGridP2(y, m - 1, p2Bout1Set, p2MaintSet, p2Bout2Set, raceKey);
+      html += renderMonth(y, m - 1, grid);
+    }
+    html += '</div><div class="legend">';
+    html += '<span><span class="swatch bout1"></span> Bout 1 (6+5 weeks out)</span>';
+    html += '<span><span class="swatch maintenance"></span> Maintenance (2/week)</span>';
+    html += '<span><span class="swatch bout2"></span> Bout 2</span>';
+    html += '<span><span class="swatch race"></span> Race day</span>';
+    html += '</div></section>';
+
+    return html;
+  }
+
+  const form = document.getElementById('form');
+  const raceInput = document.getElementById('race_date');
+  const errorEl = document.getElementById('error');
+  const placeholder = document.getElementById('placeholder');
+  const calendarsEl = document.getElementById('calendars');
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    errorEl.style.display = 'none';
+    const val = raceInput.value.trim();
+    if (!val) {
+      errorEl.textContent = 'Please enter a race date.';
+      errorEl.style.display = 'block';
+      return;
+    }
+    const raceDate = new Date(val + 'T12:00:00');
+    if (isNaN(raceDate.getTime())) {
+      errorEl.textContent = 'Invalid date. Use YYYY-MM-DD.';
+      errorEl.style.display = 'block';
+      return;
+    }
+    placeholder.style.display = 'none';
+    calendarsEl.style.display = 'block';
+    calendarsEl.innerHTML = generate(raceDate);
+  });
+})();
+  </script>
+</body>
+</html>
